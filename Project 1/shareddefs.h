@@ -1,15 +1,11 @@
 struct item {
-	//These will be deleted xDDDD
 	int id;
 	char astr[64];
-
-	int argumentArray[3];
+	int arguments[3];
 };
 
-struct itemResponse {
-	float responseVal;
-	int rangeItemCount;	
-	int rangeResp[3000];
+struct responseItem{
+	int value;
 };
 
 #define MQNAME "/justaname"
