@@ -28,7 +28,7 @@ int main(int argc, char **argv)
 	int buflen;
 
 	//Receiver
-	mqReceiveC = mq_open(MQNAME, O_RDWR | O_CREAT, 0666, NULL);
+	mqReceiveC = mq_open("/producerToConsumer", O_RDWR | O_CREAT, 0666, NULL);
 	if (mqReceiveC == -1) {
 		perror("can not create msg queue\n");
 		exit(1);
@@ -38,66 +38,60 @@ int main(int argc, char **argv)
 	mq_getattr(mqReceiveC, &mq_attr);
 	printf("mq maximum msgsize = %d\n", (int) mq_attr.mq_msgsize);
 
+	
 	//Sender
-	mqSendC = mq_open(MQNAME, O_RDWR | O_CREAT, 0666, NULL);
+	mqSendC = mq_open("/consumerToProducer", O_RDWR | O_CREAT, 0666, NULL);
 	if (mqSendC == -1) {
 		perror("can not create msg queue\n");
 		exit(1);
 	}
 	printf("mq created, mq id = %d\n", (int) mqSendC);
 
-	mq_getattr(mqSendC, &mq_attr);
+	mq_getattr(mqReceiveC, &mq_attr);
 	printf("mq maximum msgsize = %d\n", (int) mq_attr.mq_msgsize);
-
+	
 	/* allocate large enough space for the buffer to store 
         an incoming message */
     buflen = mq_attr.mq_msgsize;
 	bufptr = (char *) malloc(buflen);
 
-	//printf("********************ARGUMENTS*********************\n");
-	//for(int i=1; i < argc; i++){
-	//	printf("Argument no: %d = %d \n", i, atoi(argv[i]));
-	//}
-	//printf("**************************************************");
+	//Send to producer(added)
+	for(int i=1 ; i < argc ; i++){
+		item.arguments[i-1] = atoi(argv[i]);
+	}
+
+	n = mq_send(mqSendC, (char *) &item, sizeof(struct item), 0);
+
+	if (n == -1) {
+		perror("mq_send failed\n");
+		exit(1);
+	}
+
+	printf("\nmq_send success, item size = %d\n",
+	       (int) sizeof(struct item));
+	for(int i=0; i < 3; i++){
+		printf("item->arguments[%d]  = %d\n", i, item.arguments[i]);
+	}
 	
-
-	while (1) {
-		//-------------------------------------------------
-		//Send to producer(added)
-		for(int i=1 ; i < argc ; i++){
-			item.arguments[i-1] = atoi(argv[i]);
-		}
-
-		n = mq_send(mqSendC, (char *) &item, sizeof(struct item), 0);
-
-		if (n == -1) {
-			perror("mq_send failed\n");
-			exit(1);
-		}
-
-		printf("mq_send success, item size = %d\n",
-		       (int) sizeof(struct item));
-		for(int i=0; i < 3; i++){
-			printf("item->arguments[%d]  = %d\n", i, item.arguments[i]);
-		}
-
-		//-------------------------------------------------
+	//while (1) {
 		//Get from producer
-		n = mq_receive(mqReceiveC, (char *) bufptr, buflen, NULL);
+		n = mq_receive(mqReceiveC, (char *) &responseItem, buflen, NULL);
 		if (n == -1) {
 			perror("mq_receive failed\n");
 			exit(1);
 		}
 
+		responseItemptr = (struct responseItem*) &responseItem;
+
 		printf("mq_receive success, message size = %d\n", n);
-		responseItemptr = (struct responseItem *) bufptr;
+		//responseItemptr = (struct responseItem *) bufptr;
 
-		printf("received responseItem->value = %d\n", responseItemptr->value);
-		//-------------------------------------------------
-	}
+		printf("Received responseItem->value = %d\n", responseItemptr->value);
+	//}
 
-	free(bufptr);
-	mq_close(mqReceiveC);
-	mq_close(mqSendC);
+	//free(bufptr);
+	//mq_close(mqReceiveC);
+	//mq_close(mqSendC);
+	return(0);
 	exit(0);
 }
