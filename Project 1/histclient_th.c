@@ -10,13 +10,13 @@
 #include <fcntl.h>
 #include <sys/mman.h>
 #include <mqueue.h>
-       
-#include "commondefs.h"
+#include <time.h>
+
 #include "shareddefs.h"
 
 int main(int argc, char **argv)
-{
-
+{	
+	clock_t start_time = clock();
 	mqd_t mqReceiveC, mqSendC;
 	struct mq_attr mq_attr;
 	struct item *itemptr;
@@ -26,6 +26,12 @@ int main(int argc, char **argv)
 	int n;
 	char *bufptr;
 	int buflen;
+	int first, last;
+
+	if(argc != 4){
+		printf("Invalid number of arguments\n");
+		exit(1);
+	}
 
 	//Receiver
 	mqReceiveC = mq_open("/producerToConsumer", O_RDWR | O_CREAT, 0666, NULL);
@@ -33,10 +39,10 @@ int main(int argc, char **argv)
 		perror("can not create msg queue\n");
 		exit(1);
 	}
-	printf("mq created, mq id = %d\n", (int) mqReceiveC);
+	//printf("mq created, mq id = %d\n", (int) mqReceiveC);
 
 	mq_getattr(mqReceiveC, &mq_attr);
-	printf("mq maximum msgsize = %d\n", (int) mq_attr.mq_msgsize);
+	//printf("mq maximum msgsize = %d\n", (int) mq_attr.mq_msgsize);
 
 	
 	//Sender
@@ -45,10 +51,10 @@ int main(int argc, char **argv)
 		perror("can not create msg queue\n");
 		exit(1);
 	}
-	printf("mq created, mq id = %d\n", (int) mqSendC);
+	//printf("mq created, mq id = %d\n", (int) mqSendC);
 
 	mq_getattr(mqReceiveC, &mq_attr);
-	printf("mq maximum msgsize = %d\n", (int) mq_attr.mq_msgsize);
+	//printf("mq maximum msgsize = %d\n", (int) mq_attr.mq_msgsize);
 	
 	/* allocate large enough space for the buffer to store 
         an incoming message */
@@ -67,10 +73,9 @@ int main(int argc, char **argv)
 		exit(1);
 	}
 
-	printf("\nmq_send success, item size = %d\n",
-	       (int) sizeof(struct item));
+	//printf("\nmq_send success, item size = %d\n",(int) sizeof(struct item));
 	for(int i=0; i < 3; i++){
-		printf("item->arguments[%d]  = %d\n", i, item.arguments[i]);
+		//printf("item->arguments[%d]  = %d\n", i, item.arguments[i]);
 	}
 	
 	//while (1) {
@@ -83,15 +88,29 @@ int main(int argc, char **argv)
 
 		responseItemptr = (struct responseItem*) &responseItem;
 
-		printf("mq_receive success, message size = %d\n", n);
+		//printf("mq_receive success, message size = %d\n", n);
 		//responseItemptr = (struct responseItem *) bufptr;
+		
+		for(int i = 0 ; i < atoi(argv[1]) ; i++){
+			//printf("Received responseItem->value[%d] = %d\n",i , responseItemptr->value[i]);
+			first = (i+1)*atoi(argv[2]);
+			last = (i+2)*atoi(argv[2]);
+			
+			printf("[%d, %d): %d\n", first, last, responseItemptr->value[i]);
 
-		printf("Received responseItem->value = %d\n", responseItemptr->value);
+			clock_t end_time = clock();
+			printf("\nDuration: %zd ms\n", end_time - start_time);
+
+		}
+		
 	//}
 
 	//free(bufptr);
 	//mq_close(mqReceiveC);
 	//mq_close(mqSendC);
+	clock_t end_time = clock();
+	printf("\nTotal Duration: %zd ms\n", end_time - start_time);
+
 	return(0);
 	exit(0);
 }

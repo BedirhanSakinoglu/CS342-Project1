@@ -11,9 +11,35 @@
 #include <sys/mman.h>
 #include <mqueue.h>
 #include <signal.h>
-        
-#include "commondefs.h"
+
 #include "shareddefs.h"
+
+int readFile(char *fileName, int * arguments, int k){
+	FILE* ptr;
+    char* ch;
+	size_t len = 0;
+	ssize_t read;
+	int counter = 0;
+
+	ptr = fopen(fileName, "r");
+		
+	if (NULL == ptr) {
+    	printf("file can't be opened \n");
+ 	}
+	while ((read = getline(&ch, &len, ptr)) != -1) {
+		if( arguments[2]+(k*arguments[1]) <= atoi(ch) && arguments[2]+((k+1)*arguments[1]) > atoi(ch) ){
+			counter++;
+			//printf("%s\n", ch);
+			//printf("\nCOUNTER: %d\n", counter);
+		}
+    }
+
+	fclose(ptr);
+    if (ch){
+        free(ch);
+	}
+	return counter;
+}
 
 int main(int argc, char **argv)
 {
@@ -34,9 +60,10 @@ int main(int argc, char **argv)
 	struct parentToChildItem *parentItemptr;
 	struct responseItem *responseItemptr;
 	int processCount;
-	int result;
-	int counter = 0; //deneme
+	int counter = 0;
 	int consumerArguments[3];
+	char* fileName;
+	int least, most;
 
 	//Receiver
 	mqReceiveP = mq_open("/consumerToProducer", O_RDWR | O_CREAT, 0666, NULL);
@@ -77,9 +104,15 @@ int main(int argc, char **argv)
 			printf("item->arguments[%d]  = %d\n", i, itemptr->arguments[i]);
 			consumerArguments[i] = itemptr->arguments[i];
 		}
+		
+		int count[consumerArguments[0]];
+		int result[consumerArguments[0]];
+		for(int u = 0 ; u < consumerArguments[0] ; u++){
+			result[u] = 0;
+		}
 
 		//Creating child processes
-		processCount = consumerArguments[0];
+		processCount = atoi(argv[1]);
 
 		//mq_close(mqReceiveP);
 		//printf("PROCCESS COUNT: %d",  processCount);
@@ -100,17 +133,35 @@ int main(int argc, char **argv)
 		
 		//**************************************************************************************************************************
 		printf("Process Count: %d\n", processCount);
+
+		//***
+		
+		mqSendToParent = mq_open("/ctop", O_RDWR | O_CREAT, 0666, NULL) ;
+		if (mqSendToParent == -1) {
+			perror("annen can not create msg queue\n");
+			exit(1);
+		}
+		//printf("child mq created, mq id = %d\n", (int) mqSendToParent);
+
+			mq_getattr(mqReceiveFromParent, &mq_attr);
+
+			buflen = mq_attr.mq_msgsize;
+			bufptr = (char *) malloc(buflen);
+
+		//***
 		n = fork();
 		if(n != 0){
-			
 			parentToChildItem.order = 0;
+			parentToChildItem.arguments[0] = consumerArguments[0];
+			parentToChildItem.arguments[1] = consumerArguments[1];
+			parentToChildItem.arguments[2] = consumerArguments[2];
 			nx = mq_send(mqSendToChild, (char *) &parentToChildItem, sizeof(struct parentToChildItem), 0);
 			if (nx == -1) {
 				perror("mq_send failed\n");
 				exit(1);
 			}
 
-			sleep(1);
+			//sleep(1);
 
 			for(int i=1; i<processCount; i++){
 				if(n != 0) {
@@ -122,20 +173,22 @@ int main(int argc, char **argv)
 				}
 				if(n!=0){
 					parentToChildItem.order = i;
-					printf("\n I:::::: %d\n", i);
+					parentToChildItem.arguments[0] = consumerArguments[0];
+					parentToChildItem.arguments[1] = consumerArguments[1];
+					parentToChildItem.arguments[2] = consumerArguments[2];
+					//printf("\n I:::::: %d\n", i);
 					nx = mq_send(mqSendToChild, (char *) &parentToChildItem, sizeof(struct parentToChildItem), 0);
-					printf(" SENT NOW::::::: %d\n", parentToChildItem.order);
+					//printf(" SENT NOW::::::: %d\n", parentToChildItem.order);
 					if (nx == -1) {
 						perror("mq_send failed\n");
 						exit(1);
 					}
-					sleep(1);
+					//sleep(1);
 					//printf("\nmq_send success, item size = %d\n",(int) sizeof(struct item));
 				}
 				
 			}
 		}
-		
 
 		if(n!=0){
 			//Parent
@@ -151,6 +204,7 @@ int main(int argc, char **argv)
 			buflen = mq_attr.mq_msgsize;
 			bufptr = (char *) malloc(buflen);
 
+			
 			for(int i=0; i < processCount; i++){
 				nx = mq_receive(mqReceiveFromChild, (char *) &childToParentItem, buflen, NULL);
 				if (nx == -1) {
@@ -161,19 +215,21 @@ int main(int argc, char **argv)
 				//printf("child message received, message size = %d\n", n);
 
 				childItemptr = (struct childToParentItem *) &childToParentItem;
-				
-				if(childItemptr->isSent == 1){
-					printf("RECEIVED :: childItemptr->childValue  = %d\n", childItemptr->childValue);
-					result = result + childItemptr->childValue;
-				}
 
+				if(childItemptr->isSent == 1){
+					for(int t = 0 ; t < consumerArguments[0] ; t++){
+						result[t] = result[t] + childItemptr->childValue[t];
+					}
+				}
 				else{
 					printf("\nError\n");
 				}
 			}
-			//Send to consumer
-				
-			responseItem.value = result;
+
+			for(int i = 0 ; i < consumerArguments[0] ; i++){
+				responseItem.value[i] = result[i];
+			}
+
 
 			nx = mq_send(mqSendP, (char *) &responseItem, sizeof(struct responseItem), 0);
 
@@ -182,10 +238,11 @@ int main(int argc, char **argv)
 				exit(1);
 			}
 			printf("Response sent ::: ");
-			printf("responseItem->value= %d\n", responseItem.value);
+			for(int i = 0 ; i < consumerArguments[0] ; i++){
+				printf("responseItem->value[%d]= %d\n",i ,responseItem.value[i]);
+			}
 			
-			
-		}
+		} 
 		else if(n == 0){
 			//Child
 	
@@ -210,31 +267,26 @@ int main(int argc, char **argv)
 			//printf("child message received, message size = %d\n", n);
 			parentItemptr = (struct parentToChildItem *) &parentToChildItem;
 			
-			//int order = parentItemptr->order;
-			printf("!!!!! ORDER = %d\n", parentItemptr->order);
+			int order = parentItemptr->order;
+			//printf("ORDER = %d\n", order);
 
 			//**************************************************************************************************************************
 
-			//printf("COUNTER = %d", counter);
-			mqSendToParent = mq_open("/ctop", O_RDWR);
-			if (mqSendToParent == -1) {
-				perror("can not create msg queue\n");
-				exit(1);
+			int * histogramSpecs;
+			histogramSpecs = parentItemptr->arguments;
+	
+
+			for(int i=0 ; i < consumerArguments[0] ; i++){
+				count[i] = readFile(argv[order+2], histogramSpecs, i);
 			}
-			//printf("child mq created, mq id = %d\n", (int) mqSendToParent);
+			
+			for(int i=0 ; i < consumerArguments[0] ; i++){
+				childToParentItem.childValue[i] = count[i];
+			}
 
-			mq_getattr(mqReceiveFromParent, &mq_attr);
-
-			buflen = mq_attr.mq_msgsize;
-			bufptr = (char *) malloc(buflen);
-
-			//---------------
-
-			childToParentItem.childValue = consumerArguments[2]+(parentItemptr->order*consumerArguments[1]);
-			//childToParentItem.childValue = 99;
+			childToParentItem.childOrder = order;
 			childToParentItem.isSent = 1;
 
-			//childItemptr = (struct childToParentItem *) bufptr;
 			nx = mq_send(mqSendToParent, (char *) &childToParentItem, sizeof(struct childToParentItem), 0);
 			
 			if (nx == -1) {
@@ -242,17 +294,20 @@ int main(int argc, char **argv)
 				exit(1);
 			}
 			printf("child message sent :: ");
-			printf("childToParentItem->childValue= %d\n", childToParentItem.childValue);
+			for(int i=0 ; i < consumerArguments[0] ; i++){
+				printf("childToParentItem->childValue[%d]= %d\n",i , childToParentItem.childValue[i]);
+			}
 			printf("childToParentItem->isSent= %d\n", childToParentItem.isSent);
 
-			sleep(10);
+			//sleep(1);
 	
 		}
 
-	//free(bufptr);
-	//mq_close(mqReceiveP);
-	//mq_close(mqSendP);
-	//mq_close(mqReceiveFromParent);
+	free(bufptr);
+	mq_close(mqReceiveP);
+	mq_close(mqSendP);
+	mq_close(mqReceiveFromParent);
+	mq_close(mqReceiveFromChild);
 	return 0;
 	exit(0);
 }

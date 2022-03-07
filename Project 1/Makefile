@@ -1,19 +1,17 @@
 
-all: producer consumer simple_p simple_c
+all: histserver histclient histserver_th histclient_th
 
+histclient: histclient.c
+	gcc -Wall -g -o histclient histclient.c -lrt
 
-consumer: consumer.c
-	gcc -Wall -g -o consumer consumer.c -lrt
+histserver: histserver.c
+	gcc -Wall -g -o histserver histserver.c -lrt
+	
+histclient_th: histclient_th.c
+	gcc -Wall -g -o histclient_th histclient_th.c -lrt
 
-
-producer: producer.c
-	gcc -Wall -g -o producer producer.c -lrt
-
-simple_p: simple_p.c
-	gcc -Wall -g -o simple_p simple_p.c -lrt
-	  
-simple_c: simple_c.c
-	gcc -Wall -g -o simple_c simple_c.c -lrt
+histserver_th: histserver_th.c
+	gcc -Wall -g -o histserver_th histserver_th.c -lrt -lpthread
 
 clean:
-	rm -fr producer consumer simple_p simple_c *~ *.o   core*
+	rm -fr histserver histclient histserver_th histclient_th *~ *.o   core*
