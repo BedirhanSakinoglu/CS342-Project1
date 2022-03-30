@@ -24,7 +24,8 @@ pthread_cond_t scheduler_cond_var = PTHREAD_COND_INITIALIZER;
 pthread_cond_t process_cond = PTHREAD_COND_INITIALIZER;
 pthread_cond_t cond_io1 = PTHREAD_COND_INITIALIZER;
 pthread_cond_t cond_io2 = PTHREAD_COND_INITIALIZER;
- 
+pthread_cond_t cond_waiting = PTHREAD_COND_INITIALIZER;
+
 // declaring mutex
 pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t plock = PTHREAD_MUTEX_INITIALIZER;
@@ -114,20 +115,20 @@ static void *process_task(void *pcb_ptr)
 	double prob_io1 = atof(global_arguments[10]);
 	double prob_io2 = atof(global_arguments[11]);
 
-	int random;
+	srand ( time(NULL) );
+	int random = rand()%100;
+	printf("\nRANDOM: %d", random);
 	bool check = false;
 
 	printf("\n*********DIŞARISI********** running_pid: %d ", running_pid);
 	printf("\n*********DIŞARISI********** pid: %d, state: %s\n", ((struct pcb *) pcb_ptr)->pid, ((struct pcb *) pcb_ptr)->state);
 
 	pthread_mutex_lock(&plock);
-	while (running_pid == -1)
-	{
-		//Busy Loop
-		printf("ZA");
-	}
+	
 	
 	while(true){
+		pthread_cond_broadcast(&scheduler_cond_var);
+		printf("\nzır");
 		pthread_cond_wait(&process_cond, &plock);
 		printf("\nrunnig_pid--------------İÇERİSİ----------------: %d ", running_pid);
 		printf("\npid--------------İÇERİSİ----------------: %d\n", ((struct pcb *) pcb_ptr)->pid);
@@ -167,12 +168,13 @@ static void *process_task(void *pcb_ptr)
 			}
 
 			if(check){
-				printf("ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ");
-				pthread_cond_broadcast(&scheduler_cond_var);
+				
 				if( random < prob_terminate*100 ){
 					//terminate
+					printf("ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ");
 					((struct pcb *) pcb_ptr)->state = "TERMINATED";
 					total_process_count = total_process_count - 1;
+					pthread_cond_broadcast(&scheduler_cond_var);
 					pthread_exit("zaxDe---------");
 				}
 				else if( random < prob_terminate*100 + prob_io1*100 ){
@@ -180,7 +182,9 @@ static void *process_task(void *pcb_ptr)
 					pthread_mutex_lock(&io1lock);
 					printf("INSIDE OF IO111111111111111111111111111\n");
 					if(!flag_io1){
+						printf("\nfffffffffff");
 						pthread_cond_wait(&cond_io1, &io1lock);
+						printf("\nrrrrrrrrrrrr");
 					}
 					else if(flag_io1){
 						flag_io1 = false;
@@ -215,6 +219,13 @@ static void *process_task(void *pcb_ptr)
 						((struct pcb *) pcb_ptr)->remaining_time = random;
 
 					}
+					((struct pcb *) pcb_ptr)->state = "READY";
+					insertqueue(*((struct pcb *) pcb_ptr));
+					pthread_cond_broadcast(&scheduler_cond_var);
+					flag_io1 = true;
+					pthread_cond_signal(&cond_io1);
+					pthread_mutex_unlock(&io1lock);
+
 					//*******************************************************************************
 
 					pthread_cond_signal(&cond_io1);
@@ -224,8 +235,11 @@ static void *process_task(void *pcb_ptr)
 					//io2
 					pthread_mutex_lock(&io2lock);
 					printf("INSIDE OF IO22222222222222222222222222222\n");
+					printf("\nflag io2: %d", flag_io2);
 					if(!flag_io2){
+						printf("\nfffffffffff");
 						pthread_cond_wait(&cond_io2, &io2lock);
+						printf("\nrrrrrrrrrrrrrrrr");
 					}
 					else if(flag_io2){
 						flag_io2 = false;
@@ -263,7 +277,8 @@ static void *process_task(void *pcb_ptr)
 					//*******************************************************************************
 					((struct pcb *) pcb_ptr)->state = "READY";
 					insertqueue(*((struct pcb *) pcb_ptr));
-
+					pthread_cond_broadcast(&scheduler_cond_var);
+					flag_io2 = true;
 					pthread_cond_signal(&cond_io2);
 					pthread_mutex_unlock(&io2lock);
 				}
@@ -505,7 +520,7 @@ static void *generate_process(){
 		counter = counter+1;
 
 		
-		pthread_cond_broadcast(&scheduler_cond_var);
+		
 		
 	}
 
@@ -518,6 +533,7 @@ static void *generate_process(){
 	printf("\nmaxp: %d", maxp);
 	printf("\npg: %f", pg);
 
+	/*
 	//Create threads with probability
 	if( count < maxp){
 		int random;
@@ -585,7 +601,8 @@ static void *generate_process(){
 		total_process_count = counter;
 	}
 	printf("\n**********************************************************************************\n");
-
+	*/
+	total_process_count = 1; //sil bunu
 	
 	for (i = 0; i < counter; ++i) {
 		printf("\nTERMINATION ");
@@ -613,6 +630,7 @@ static void *schedule(){
 	while(total_process_count != 0){
 		printf("Waiting on condition variable scheduler_cond_var\n");
 		pthread_cond_wait(&scheduler_cond_var, &lock);
+		sleep(1);
 		char *algo = global_arguments[1];
 		printf("\n\nALGORITMA: %s", algo);
 			
@@ -656,10 +674,12 @@ static void *schedule(){
 
 int main(int argc, char *argv[])
 {
+	
 	global_arguments = argv;
 	pthread_t generator_id, scheduler_id;
-    pthread_create(&generator_id, NULL, generate_process, NULL);
 	pthread_create(&scheduler_id, NULL, schedule, NULL);
+    pthread_create(&generator_id, NULL, generate_process, NULL);
+	
 
     //---------------------------------------------------------------------------------------------------------------------------------------------------
     
