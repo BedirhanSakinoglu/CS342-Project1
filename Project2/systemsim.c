@@ -17,6 +17,7 @@ char **global_arguments;
 //bool flag = false;
 bool flag_io1 = true;
 bool flag_io2 = true;
+int total_process_count = -1;
 
 // Declaration of thread condition variable
 pthread_cond_t scheduler_cond_var = PTHREAD_COND_INITIALIZER;
@@ -45,8 +46,12 @@ struct pcb {
     char *state;
 };
 
+//struct pcb t_args[MAXTHREADS];
+//pthread_t tids[MAXTHREADS];	
+
 //Ready Queue ---------------------------------------------
 struct pcb ready_queue[MAXTHREADS];
+int running_pid = -1;
 int head_index = 0;
 int tail_index = 0;
 
@@ -56,10 +61,10 @@ void insertqueue(struct pcb value){
     printf("Inserted to ready queue: %d\n", value.pid);
 }
 
-struct pcb dequeue(){
-    struct pcb value = ready_queue[head_index];
+struct pcb *dequeue(){
+    struct pcb *value = &ready_queue[head_index];
     head_index = head_index + 1;
-    printf("Dequeued: %d\n", value.pid);
+    printf("Dequeued: %d, State of Process: %s\n", value->pid, value->state);
     return value;
 };
 
@@ -112,13 +117,23 @@ static void *process_task(void *pcb_ptr)
 	int random;
 	bool check = false;
 
+	printf("\n*********DIŞARISI********** running_pid: %d ", running_pid);
+	printf("\n*********DIŞARISI********** pid: %d, state: %s\n", ((struct pcb *) pcb_ptr)->pid, ((struct pcb *) pcb_ptr)->state);
+
 	pthread_mutex_lock(&plock);
+	while (running_pid == -1)
+	{
+		//Busy Loop
+		printf("ZA");
+	}
+	
 	while(true){
 		pthread_cond_wait(&process_cond, &plock);
-		printf("\npid: %d", ((struct pcb *) pcb_ptr)->pid);
+		printf("\nrunnig_pid--------------İÇERİSİ----------------: %d ", running_pid);
+		printf("\npid--------------İÇERİSİ----------------: %d\n", ((struct pcb *) pcb_ptr)->pid);
 
 		//BU CONDITION SAĞLANMIYOR
-		if(strcmp(((struct pcb *) pcb_ptr)->state,"RUNNING") == 0){
+		if(((struct pcb *) pcb_ptr)->pid == running_pid){
 			//_________________________________________________________________________________________________________________________________________________________________________
 
 			printf("\n\nRUNNIGNIGNIGNGINGRUNNIGNIGNIGNGINGRUNNIGNIGNIGNGINGRUNNIGNIGNIGNGINGRUNNIGNIGNIGNGINGRUNNIGNIGNIGNGINGRUNNIGNIGNIGNGINGRUNNIGNIGNIGNGINGRUNNIGNIGNIGNGING\n\n");
@@ -152,14 +167,18 @@ static void *process_task(void *pcb_ptr)
 			}
 
 			if(check){
+				printf("ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ");
 				pthread_cond_broadcast(&scheduler_cond_var);
 				if( random < prob_terminate*100 ){
 					//terminate
 					((struct pcb *) pcb_ptr)->state = "TERMINATED";
+					total_process_count = total_process_count - 1;
+					pthread_exit("zaxDe---------");
 				}
 				else if( random < prob_terminate*100 + prob_io1*100 ){
 					//io1
 					pthread_mutex_lock(&io1lock);
+					printf("INSIDE OF IO111111111111111111111111111\n");
 					if(!flag_io1){
 						pthread_cond_wait(&cond_io1, &io1lock);
 					}
@@ -204,6 +223,7 @@ static void *process_task(void *pcb_ptr)
 				else if( random < prob_terminate*100 + prob_io1*100 + prob_io2*100 ){
 					//io2
 					pthread_mutex_lock(&io2lock);
+					printf("INSIDE OF IO22222222222222222222222222222\n");
 					if(!flag_io2){
 						pthread_cond_wait(&cond_io2, &io2lock);
 					}
@@ -249,7 +269,7 @@ static void *process_task(void *pcb_ptr)
 				}
 				//flag = true;
 			}
-
+			printf("XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX");
 			//_________________________________________________________________________________________________________________________________________________________________________
 		}
 	}
@@ -437,7 +457,7 @@ static void *generate_process(){
 	int counter = 0;
     
 	//flag = false;
-    count = 10;	/* number of threads to create initially*/
+    count = 0;	/* number of threads to create initially*/
 	
 	//Create 10 threads immediately
 	for (i = 0 ; i < count+1 ; ++i) {
@@ -510,17 +530,17 @@ static void *generate_process(){
 		
 		coeff = coeff*multiplier;
 
-		for (i = 11; i < allp; i++){
+		for (i = 0; i < allp; i++){
 			usleep(5000);
 		
 			random = rand() % coeff;
 			//rintf("random: %d", random);
 			if(random < pg*coeff){
 				//Create threads
-				void* pcb_ptr = &(t_args[i]);
+				void* pcb_ptr = &(t_args[i+11]);
 
-				t_args[i].pid = i;
-				t_args[i].state = "READY";
+				t_args[i+11].pid = i+11;
+				t_args[i+11].state = "READY";
 
 				//*******************************************************************************
 				if(strcmp(global_arguments[5],"fixed") == 0){
@@ -551,18 +571,20 @@ static void *generate_process(){
 				}
 				//*******************************************************************************
 
-				ret = pthread_create(&(tids[counter]), NULL, process_task, (void *) &(t_args[i]));
+				ret = pthread_create(&(tids[counter]), NULL, process_task, (void *) &(t_args[i+11]));
 				if (ret != 0) {
 					printf("thread create failed \n");
 					exit(1);
 				}
 				printf("Additional thread %i with tid %u created\n", i, (unsigned int) (unsigned int) tids[counter]);
-				insertqueue(t_args[i]);
+				insertqueue(t_args[i+11]);
 				counter = counter +1;
 				pthread_cond_broadcast(&scheduler_cond_var);
 			}
 		}
+		total_process_count = counter;
 	}
+	printf("\n**********************************************************************************\n");
 
 	
 	for (i = 0; i < counter; ++i) {
@@ -588,7 +610,7 @@ static void *schedule(){
 	// acquire a lock
 	printf("SCHEDULE \n\n");
     pthread_mutex_lock(&lock);
-	while(true){
+	while(total_process_count != 0){
 		printf("Waiting on condition variable scheduler_cond_var\n");
 		pthread_cond_wait(&scheduler_cond_var, &lock);
 		char *algo = global_arguments[1];
@@ -597,9 +619,13 @@ static void *schedule(){
 		//SCHEDULING ALGORITHMS
 		printf("\n\n PASSED COND VAR \n\n");
 		if( strcmp(algo,"FCFS") == 0){
-			struct pcb process = dequeue();
-			process.state = "RUNNING";
+			struct pcb *process = dequeue();
+			//printf("**************************Dequeued: %d, State of Process: %s\n", process->pid, process->state);
+			process->state = "RUNNING";
+			running_pid = process->pid;
+			printf("--------------------------Dequeued: %d, State of Process: %s\n", process->pid, process->state);
 			pthread_cond_broadcast(&process_cond);
+			printf("FCFS İÇERİSİ*****\n");
 		}
 		else if( strcmp(algo,"SJF") == 0 ){
 			struct pcb process;
@@ -614,8 +640,8 @@ static void *schedule(){
 		}
 		else if( strcmp(algo,"RR") == 0){
 			int quantum = atoi(global_arguments[2]);
-			struct pcb process = dequeue();
-			process.state = "RUNNING";
+			struct pcb *process = dequeue();
+			process->state = "RUNNING";
 			pthread_cond_broadcast(&process_cond);
 		}
 		else{
