@@ -50,14 +50,126 @@ struct pcb {
 //struct pcb t_args[MAXTHREADS];
 //pthread_t tids[MAXTHREADS];	
 
+//***************************************HIRSIZLAR ÇETESİ BÖLÜMÜ***********************************************
+// Structure of a linked list node
+struct node {
+    struct pcb my_pcb;
+    struct node* next;
+};
+ 
+// Pointer to head node in the list
+struct node* head = NULL;
+ 
+// Function to add a new node at the
+// end of the list
+void addatlast(struct pcb value)
+{
+ 
+    // Initialize a new node
+	struct node* p;
+    struct node* temp;
+    temp = (struct node*)malloc(sizeof(struct node));
+	temp->my_pcb = value;
+	temp->next = NULL;
+ 
+    // If the new node is the
+    // only node in the list
+    if (head == NULL) {
+		printf("a new item is added while head is NULL\n");
+		head = temp;
+		printf("pcb value in head is: %d\n", head->my_pcb.pid);
+    }
+ 
+    // Else the new node will be the
+    // last node and will contain
+    // the reference of head node
+    else {
+		p  = head;//assign head to p 
+        while(p->next != NULL){
+            p = p->next;//traverse the list until p is the last node.The last node always points to NULL.
+        }
+        p->next = temp;//Point the previous last node to the new node created.
+		printf("a new item is added while head is NOT NULL******-----\n");
+    }
+}
+
+struct pcb *remove_head() {
+	if(head == NULL) {
+		printf("ANANI GÖTTEN SİKİYİM:\n");
+		return;
+	}
+	else {
+		struct node* temp;
+		temp = head;
+		printf("BURDA MISIN OROSPU EVLADI:\n");
+		if(temp->next == NULL) {
+			head = NULL;
+		}
+		else {
+			printf("YARRAM: %d\n", head->my_pcb.pid);
+			head = head->next;
+			printf("YARRAM22222222222: %d", head->my_pcb.pid);
+		}
+		
+	}
+}
+
+void remove_by_id(int id_value)
+{
+	struct node* temp = head;
+	struct node* current = head;	
+	struct node* prev = head;
+	
+	if (head == NULL)
+	{
+		return;
+	}
+	else {
+		while(temp != NULL) {
+			printf("YARRAMI YE");
+			if(temp->my_pcb.pid != id_value) {
+				prev = current;
+				current = current->next;
+			}
+			else {
+				prev->next = current->next;
+				break;
+			}
+		}
+		/*
+		struct node* temp = head;
+		struct node* current = head;
+		struct node* prev = head;
+		do
+		{
+			if(current->my_pcb.pid != id_value) {
+				prev = current;
+				current = current->next;
+			}
+			else {
+				prev->next = current->next;
+				break;
+			}
+		}while (head->my_pcb.pid != current->my_pcb.pid);	
+		*/	
+	}
+	
+}
+int running_pid = -1;
+//***************************************HIRSIZLAR ÇETESİ BÖLÜMÜ***********************************************
+
+/*
 //Ready Queue ---------------------------------------------
 struct pcb ready_queue[MAXTHREADS];
-int running_pid = -1;
 int head_index = 0;
 int tail_index = 0;
 
+
 void insertqueue(struct pcb value){
+	printf("INSIDE OF insertqueue \n");
+	printf("Value of value.pid is: %d \n", value.pid);
     ready_queue[tail_index] = value;
+	printf("INSIDE OF insertqueue***********\n");
     tail_index = tail_index + 1;
     printf("Inserted to ready queue: %d\n", value.pid);
 }
@@ -69,7 +181,8 @@ struct pcb *dequeue(){
     return value;
 };
 
-/*
+
+
 void printqueue(char* attr, int index){
     
     if(strcmp(attr,"pid") == 0){
@@ -82,21 +195,21 @@ void printqueue(char* attr, int index){
 		printf("%s, ", ready_queue[index].state);
 	}
 }
-*/
+
 
 int getburst(int index){
 	return ready_queue[index].burst;
 }
 
-/*
 int getpid(int index){
 	return ready_queue[index].pid;
 }
-*/
+
 
 char* getstate(int index){
 	return ready_queue[index].state;
 }
+*/
 //---------------------------------------------------------
 
 static void *process_task(void *pcb_ptr)
@@ -138,7 +251,7 @@ static void *process_task(void *pcb_ptr)
 		int random = rand()%100;
 		printf("\nRANDOM: %d", random);
 
-		//BU CONDITION SAĞLANMIYOR
+		
 		if(((struct pcb *) pcb_ptr)->pid == running_pid){
 			//_________________________________________________________________________________________________________________________________________________________________________
 
@@ -148,18 +261,28 @@ static void *process_task(void *pcb_ptr)
 				if( remaining_time < quantum ){
 					usleep(remaining_time*1000);
 					//((struct pcb *) pcb_ptr)->state = "TERMINATED";
+					printf("\nANAYIN AMI GÖTTEN ----1\n");
 					check = true;
 				}
 				else if( remaining_time == quantum ){
 					usleep(quantum*1000);
 					//((struct pcb *) pcb_ptr)->state = "TERMINATED";
+					printf("\nANAYIN AMI GÖTTEN ----2\n");
 					check = true;
 				}
 				else{
 					usleep(quantum*1000);
 					((struct pcb *) pcb_ptr)->state = "READY";
-					insertqueue(*((struct pcb *) pcb_ptr));
+					addatlast(*((struct pcb *) pcb_ptr));
+					//insertqueue(*((struct pcb *) pcb_ptr));
+					printf("\nANAYIN AMI GÖTTEN ----3\n");
 					pthread_cond_broadcast(&scheduler_cond_var);
+				}
+				if(remaining_time - quantum <= 0) {
+					remaining_time = 0;
+				}
+				else {
+					remaining_time = remaining_time - quantum;
 				}
 			}
 			else if( (strcmp(algo,"FCFS") == 0)  || (strcmp(algo,"SJF") == 0)){
@@ -198,8 +321,10 @@ static void *process_task(void *pcb_ptr)
 					else if(flag_io1){
 						flag_io1 = false;
 					}
-					((struct pcb *) pcb_ptr)->state = "WAITING";
+					//((struct pcb *) pcb_ptr)->state = "WAITING";
+					printf("ZARTZURTZORT\n");
 					usleep(atoi(global_arguments[3]));
+					
 					
 					//*******************************************************************************
 					if(strcmp(global_arguments[5],"fixed") == 0){
@@ -228,13 +353,15 @@ static void *process_task(void *pcb_ptr)
 						((struct pcb *) pcb_ptr)->remaining_time = random;
 
 					}
-					((struct pcb *) pcb_ptr)->state = "READY";
-					insertqueue(*((struct pcb *) pcb_ptr));
-					pthread_cond_broadcast(&scheduler_cond_var);
-					flag_io1 = true;
-					pthread_cond_signal(&cond_io1);
-					pthread_mutex_unlock(&io1lock);
-
+					if(((struct pcb *) pcb_ptr) != NULL) {
+						((struct pcb *) pcb_ptr)->state = "READY";
+						addatlast(*((struct pcb *) pcb_ptr));
+						//insertqueue((*((struct pcb *) pcb_ptr)));
+						pthread_cond_broadcast(&scheduler_cond_var);
+						flag_io1 = true;
+						pthread_cond_signal(&cond_io1);
+						pthread_mutex_unlock(&io1lock);
+					}
 					//*******************************************************************************
 
 					pthread_cond_signal(&cond_io1);
@@ -285,7 +412,8 @@ static void *process_task(void *pcb_ptr)
 					}
 					//*******************************************************************************
 					((struct pcb *) pcb_ptr)->state = "READY";
-					insertqueue(*((struct pcb *) pcb_ptr));
+					addatlast(*((struct pcb *) pcb_ptr));
+					//insertqueue(*((struct pcb *) pcb_ptr));
 					pthread_cond_broadcast(&scheduler_cond_var);
 					flag_io2 = true;
 					pthread_cond_signal(&cond_io2);
@@ -293,7 +421,6 @@ static void *process_task(void *pcb_ptr)
 				}
 				//flag = true;
 			}
-			printf("END OF IF STATEMENT WHERE pid == running_pid");
 			//_________________________________________________________________________________________________________________________________________________________________________
 		}
 	}
@@ -317,7 +444,7 @@ static void *generate_process(){
 	int counter = 0;
     
 	//flag = false;
-    count = 9;	/* number of threads to create initially*/
+    count = 0;	/* number of threads to create initially*/
 	
 	//Create 10 threads immediately
 	for (i = 0 ; i < count+1 ; ++i) {
@@ -360,7 +487,8 @@ static void *generate_process(){
 			printf("thread create failed \n");
 			exit(1);
 		}
-		insertqueue(t_args[i]);
+		addatlast(t_args[i]);
+		//insertqueue(t_args[i]);
 		printf("thread %i with tid %u created\n", i, (unsigned int) (unsigned int) tids[counter]);
 		counter = counter+1;
 	}
@@ -433,7 +561,8 @@ static void *generate_process(){
 					exit(1);
 				}
 				printf("Additional thread %i with tid %u created\n", i, (unsigned int) (unsigned int) tids[counter]);
-				insertqueue(t_args[i+11]);
+				addatlast(t_args[i+11]);
+				//insertqueue(t_args[i+11]);
 				counter = counter +1;
 				pthread_cond_broadcast(&scheduler_cond_var);
 			}
@@ -470,36 +599,78 @@ static void *schedule(){
 	while(total_process_count > 0){
 		printf("Waiting on condition variable scheduler_cond_var\n");
 		pthread_cond_wait(&scheduler_cond_var, &lock);
-		sleep(1);
+		usleep(100000);
 		char *algo = global_arguments[1];
 		printf("\n\nALGORITMA: %s", algo);
 			
 		//SCHEDULING ALGORITHMS
 		printf("\n\n PASSED COND VAR \n\n");
 		if( strcmp(algo,"FCFS") == 0){
-			struct pcb *process = dequeue();
+			printf("PATLADIĞIMIZ YER----1 \n");
+			struct pcb *process  = remove_head();
+			printf("PATLADIĞIMIZ YER----2 \n");
+			//struct pcb *process = dequeue();
 			process->state = "RUNNING";
+			printf("PATLADIĞIMIZ YER----3 \n");
 			running_pid = process->pid;
+			
 			printf("--------------------------Dequeued: %d, State of Process: %s\n", process->pid, process->state);
 			pthread_cond_broadcast(&process_cond);
 			printf("FCFS İÇERİSİ*****\n");
 		}
+		//BURASI DÜZELTİLECEK
+		
 		else if( strcmp(algo,"SJF") == 0 ){
+
+			//ÇALDIM HELAL ET BÖLÜMÜ
+			struct pcb process;
+			int min_burst = INT_MAX;
+			struct node* temp = head;
+			while(temp != NULL)
+			{
+				printf("current burst inside SJF is: %d\n", temp->my_pcb.burst);
+				printf("current pid inside SJF is*****: %d\n", temp->my_pcb.pid);
+				// do something
+				if(temp->my_pcb.burst < min_burst){
+					min_burst = temp->my_pcb.burst;
+					process = temp->my_pcb;
+					printf("minimum running time is: %d\n ", process.burst);
+					printf("minimum pid is: %d\n ", process.pid);
+				}
+				temp= temp->next;
+			}
+
+			printf("********************running_pidis: %d\n", running_pid);
+			running_pid = process.pid;
+			printf("--------------------running_pidis: %d\n", running_pid);
+			process.state = "RUNNING";
+			remove_by_id(running_pid);
+			min_burst = INT_MAX;
+			pthread_cond_broadcast(&process_cond);
+			//ÇALDIM HELAL ET BÖLÜMÜ
+
+			/*
 			struct pcb process;
 			int min_burst = INT_MAX;
 			for(int i = head_index ; i < tail_index; i++){
-				if(getburst(i) < min_burst){
-					min_burst = getburst(i) ;
-					process = ready_queue[i];
-				}
-			}
+                if(getburst(i) < min_burst){
+                    min_burst = getburst(i) ;
+                    process = ready_queue[i];
+                }
+            }
 			process.state = "RUNNING";
+			*/
 		}
+		
 		else if( strcmp(algo,"RR") == 0){
 			int quantum = atoi(global_arguments[2]);
-			struct pcb *process = dequeue();
+			struct pcb *process = remove_head();
+			//struct pcb *process = dequeue();
 			process->state = "RUNNING";
+			running_pid = process->pid;
+			printf("--------------------------Dequeued: %d, State of Process: %s\n", process->pid, process->state);
 			pthread_cond_broadcast(&process_cond);
+			printf("*****RR İÇERİSİ*****\n");
 		}
 		else{
 			printf("\nERROR: Undefined Scheduling Algorithm");
