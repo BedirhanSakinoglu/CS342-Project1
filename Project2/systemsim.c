@@ -8,17 +8,21 @@
 #include <stdbool.h>  
 #include <limits.h>
 #include <math.h>
-#include <time.h>
+#include <sys/time.h>
 
 #define MAXTHREADS  500	    /* max number of threads */
 #define MAXFILENAME 50		/* max length of a filename */
+#define ANALYSISSIZE 30		/* 30 threads to analyze*/
 
 char **global_arguments;
 bool flag_io1 = true;
 bool flag_io2 = true;
 int total_process_count = 0;
 int running_pid = -1;
-clock_t t;
+int analysis_count = 0;
+all_finish_times[ANALYSISSIZE];
+all_turnaround_times[ANALYSISSIZE];
+all_waiting_times[ANALYSISSIZE];
 
 // Declaration of thread condition variable
 pthread_cond_t scheduler_cond_var = PTHREAD_COND_INITIALIZER;
@@ -46,6 +50,10 @@ struct pcb {
 	int burst;
 	int remaining_time;
     char *state;
+	int arrival_time;
+	int finish_time;
+	int turnaround_time;
+	int total_wait_time;
 };
 
 
@@ -57,6 +65,7 @@ struct node {
  
 //Head node
 struct node* head = NULL;
+struct timeval current_time;
  
 void addatlast(struct pcb value)
 {
@@ -148,8 +157,6 @@ void deleteNode(struct node** head_ref, int key)
 
 static void *process_task(void *pcb_ptr)
 {
-	t = clock();
-	
 	bool check = false;
 	char* retreason;
 	char *algo = global_arguments[1];
@@ -160,10 +167,6 @@ static void *process_task(void *pcb_ptr)
 	double prob_io1 = atof(global_arguments[10]);
 	double prob_io2 = atof(global_arguments[11]);
 
-
-	printf("\n*********DIŞARISI********** running_pid: %d ", running_pid);
-	printf("\n*********DIŞARISI********** pid: %d, state: %s\n", ((struct pcb *) pcb_ptr)->pid, ((struct pcb *) pcb_ptr)->state);
-
 	pthread_mutex_lock(&plock);
 	pthread_cond_broadcast(&scheduler_cond_var);
 	
@@ -173,16 +176,15 @@ static void *process_task(void *pcb_ptr)
 	*/
 
 	while(true){
+		gettimeofday(&current_time, NULL);
 		pthread_cond_wait(&process_cond, &plock);
-		printf("\nrunnig_pid--------------İÇERİSİ----------------: %d ", running_pid);
-		printf("\npid--------------İÇERİSİ----------------: %d\n", ((struct pcb *) pcb_ptr)->pid);
+
 
 		//RR çalışınca tam burada takılıyor ama anlamadım!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 		srand ( time(NULL) );
 		int random = rand()%100;
 		
 		if(((struct pcb *) pcb_ptr)->pid == running_pid){
-			//_________________________________________________________________________________________________________________________________________________________________________
 
 			printf("\nAN ALGORITHM IS RUNNING NOW\n");
 			if(strcmp(algo,"RR") == 0){
@@ -190,13 +192,11 @@ static void *process_task(void *pcb_ptr)
 				if(((struct pcb *) pcb_ptr)->remaining_time < quantum ){
 					usleep(remaining_time*1000);
 					((struct pcb *) pcb_ptr)->remaining_time = 0;
-					//((struct pcb *) pcb_ptr)->state = "TERMINATED";
 					check = true;
 				}
 				else if(((struct pcb *) pcb_ptr)->remaining_time == quantum ){
 					usleep(quantum*1000);
 					((struct pcb *) pcb_ptr)->remaining_time = 0;
-					//((struct pcb *) pcb_ptr)->state = "TERMINATED";
 					check = true;
 				}
 				else{
@@ -204,13 +204,11 @@ static void *process_task(void *pcb_ptr)
 					((struct pcb *) pcb_ptr)->state = "READY";
 					((struct pcb *) pcb_ptr)->remaining_time = ((struct pcb *) pcb_ptr)->remaining_time - quantum;
 					addatlast(*((struct pcb *) pcb_ptr));
-					//insertqueue(*((struct pcb *) pcb_ptr));
 					pthread_cond_broadcast(&scheduler_cond_var);
 				}
 			}
 			else if( (strcmp(algo,"FCFS") == 0)  || (strcmp(algo,"SJF") == 0)){
 				usleep(remaining_time*1000);
-				//((struct pcb *) pcb_ptr)->state = "TERMINATED";
 				check = true;
 			}
 			else{
@@ -222,58 +220,67 @@ static void *process_task(void *pcb_ptr)
 				
 				if( random < prob_terminate*100 ){
 					//terminate
-					
-					((struct pcb *) pcb_ptr)->state = "TERMINATED";
-					total_process_count = total_process_count - 1;
-					printf("A THREAD IS TERMINATED");
-					printf("\ntotal_process_count is: %d\n", total_process_count);
-					pthread_cond_broadcast(&scheduler_cond_var);
-					printf("AFTER CALLING scheduler_cond_var\n");
-						
-					//------------GET TIMER RESULT------------
-					t = clock() - t;
-					double time_taken = ((double)t)/CLOCKS_PER_SEC;
-						
-					//OUTMODE == 0
-					if(atof(global_arguments[11]) == 0) {
-						//do nothing
-					}
 
-					//OUTMODE == 1
-					else if(atof(global_arguments[11]) == 1) {
-						printf("%d,  %d,   %s", time_taken, ((struct pcb *) pcb_ptr)->pid, ((struct pcb *) pcb_ptr)->state);
+					int terminatation_time = current_time.tv_usec;
+					((struct pcb *) pcb_ptr)->state = "TERMINATED";
+					((struct pcb *) pcb_ptr)->finish_time = terminatation_time + ((struct pcb *) pcb_ptr)->total_wait_time;
+					((struct pcb *) pcb_ptr)->turnaround_time = terminatation_time -((struct pcb *) pcb_ptr)->arrival_time;
+					
+					if(analysis_count < ANALYSISSIZE) {
+						all_finish_times[analysis_count] = ((struct pcb *) pcb_ptr)->finish_time;
+						all_waiting_times[analysis_count] = ((struct pcb *) pcb_ptr)->total_wait_time;
+						all_turnaround_times[analysis_count] = ((struct pcb *) pcb_ptr)->finish_time - ((struct pcb *) pcb_ptr)->arrival_time;
+						analysis_count = analysis_count + 1;
 					}
-							
-					//OUTMODE == 2
-					if(atof(global_arguments[11]) == 2) {
-						//-----------TODO-----------
-					}
+											
+					//------------GET TIMER RESULT------------
+					if(((struct pcb *) pcb_ptr) != NULL) {
+						//OUTMODE == 0
+						if(atof(global_arguments[15]) == 0) {
+							//do nothing
+						}
+
+						//OUTMODE == 1
+						else if(atof(global_arguments[15]) == 1) {
+							printf("%d   %d   %s\n", terminatation_time, ((struct pcb *) pcb_ptr)->pid, ((struct pcb *) pcb_ptr)->state);
+						}
+								
+						//OUTMODE == 2
+						if(atof(global_arguments[15]) == 2) {
+							//-----------TODO-----------
+						}
+					}	
+					total_process_count = total_process_count - 1;
+					//printf("A THREAD IS TERMINATED");
+					//printf("\ntotal_process_count is: %d\n", total_process_count);
+					pthread_cond_broadcast(&scheduler_cond_var);
+					//printf("AFTER CALLING scheduler_cond_var\n");
+
 					pthread_mutex_unlock(&plock);
 					pthread_exit("test");
 				}
 				else if( random < prob_terminate*100 + prob_io1*100 ){
 					//io1
 					pthread_mutex_lock(&io1lock);
-
+											
 					//------------GET TIMER RESULT------------
-					t = clock() - t;
-					double time_taken = ((double)t)/CLOCKS_PER_SEC;
-						
-					//OUTMODE == 0
-					if(atof(global_arguments[11]) == 0) {
-						//do nothing
-					}
+					if(((struct pcb *) pcb_ptr) != NULL) {
+						//OUTMODE == 0
+						if(atof(global_arguments[15]) == 0) {
+							//do nothing
+						}
 
-					//OUTMODE == 1
-					else if(atof(global_arguments[11]) == 1) {
-						printf("%d,  %d,   %s", time_taken, ((struct pcb *) pcb_ptr)->pid, "DEVICE1");
+						//OUTMODE == 1
+						else if(atof(global_arguments[15]) == 1) {
+							printf("%d   %d   %s\n", current_time.tv_usec, ((struct pcb *) pcb_ptr)->pid, "DEVICE1");
+						}
+								
+						//OUTMODE == 2
+						if(atof(global_arguments[15]) == 2) {
+							//-----------TODO-----------
+						}
 					}
-							
-					//OUTMODE == 2
-					if(atof(global_arguments[11]) == 2) {
-						//-----------TODO-----------
-					}
-					printf("INSIDE OF IO1 DEVICE\n");
+					//printf("INSIDE OF IO1 DEVICE\n");
 					if(!flag_io1){
 						printf("\nfffffffffff");
 						pthread_cond_wait(&cond_io1, &io1lock);
@@ -283,8 +290,8 @@ static void *process_task(void *pcb_ptr)
 						flag_io1 = false;
 					}
 					//((struct pcb *) pcb_ptr)->state = "WAITING";
-					printf("ZARTZURTZORT\n");
 					usleep(atoi(global_arguments[3]));
+					((struct pcb *) pcb_ptr)->total_wait_time = ((struct pcb *) pcb_ptr)->total_wait_time + atoi(global_arguments[3]);
 					
 					
 					//*******************************************************************************
@@ -320,25 +327,6 @@ static void *process_task(void *pcb_ptr)
 						pthread_cond_broadcast(&scheduler_cond_var);
 						flag_io1 = true;
 						pthread_cond_signal(&cond_io1);
-
-						//------------GET TIMER RESULT------------
-						t = clock() - t;
-						double time_taken = ((double)t)/CLOCKS_PER_SEC;
-							
-						//OUTMODE == 0
-						if(atof(global_arguments[11]) == 0) {
-							//do nothing
-						}
-
-						//OUTMODE == 1
-						else if(atof(global_arguments[11]) == 1) {
-							printf("%d,  %d,   %s", time_taken, ((struct pcb *) pcb_ptr)->pid, ((struct pcb *) pcb_ptr)->state);
-						}
-								
-						//OUTMODE == 2
-						if(atof(global_arguments[11]) == 2) {
-							//-----------TODO-----------
-						}
 						pthread_mutex_unlock(&io1lock);
 					}
 					//*******************************************************************************
@@ -349,27 +337,26 @@ static void *process_task(void *pcb_ptr)
 				else if( random < prob_terminate*100 + prob_io1*100 + prob_io2*100 ){
 					//io2
 					pthread_mutex_lock(&io2lock);
-					
+										
 					//------------GET TIMER RESULT------------
-					t = clock() - t;
-					double time_taken = ((double)t)/CLOCKS_PER_SEC;
-						
-					//OUTMODE == 0
-					if(atof(global_arguments[11]) == 0) {
-						//do nothing
-					}
 
-					//OUTMODE == 1
-					else if(atof(global_arguments[11]) == 1) {
-						printf("%d,  %d,   %s", time_taken, ((struct pcb *) pcb_ptr)->pid, "DEVICE1");
+					if(((struct pcb *) pcb_ptr) != NULL) {
+						//OUTMODE == 0
+						if(atof(global_arguments[15]) == 0) {
+							//do nothing
+						}
+
+						//OUTMODE == 1
+						else if(atof(global_arguments[15]) == 1) {
+							printf("%d   %d   %s\n", current_time.tv_usec, ((struct pcb *) pcb_ptr)->pid, ((struct pcb *) pcb_ptr)->state);
+						}
+								
+						//OUTMODE == 2
+						if(atof(global_arguments[15]) == 2) {
+							//-----------TODO-----------
+						}
 					}
-							
-					//OUTMODE == 2
-					if(atof(global_arguments[11]) == 2) {
-						//-----------TODO-----------
-					}
-					printf("INSIDE OF IO2 DEVICE\n");
-					printf("\nflag io2: %d", flag_io2);
+					//printf("INSIDE OF IO2 DEVICE\n");
 					if(!flag_io2){
 						printf("\nfffffffffff");
 						pthread_cond_wait(&cond_io2, &io2lock);
@@ -378,27 +365,9 @@ static void *process_task(void *pcb_ptr)
 					else if(flag_io2){
 						flag_io2 = false;
 					}
-					((struct pcb *) pcb_ptr)->state = "WAITING";
-
-					//------------GET TIMER RESULT------------
-					t = clock() - t;
-    				double time_taken = ((double)t)/CLOCKS_PER_SEC;
-						
-					//OUTMODE == 0
-					if(atof(global_arguments[11]) == 0) {
-						//do nothing
-					}
-
-					//OUTMODE == 1
-					else if(atof(global_arguments[11]) == 1) {
-						printf("%d,  %d,   %s", time_taken, ((struct pcb *) pcb_ptr)->pid, ((struct pcb *) pcb_ptr)->state);
-					}
-							
-					//OUTMODE == 2
-					if(atof(global_arguments[11]) == 2) {
-						//-----------TODO-----------
-					}
+					//((struct pcb *) pcb_ptr)->state = "WAITING";
 					usleep(atoi(global_arguments[4]));
+					((struct pcb *) pcb_ptr)->total_wait_time = ((struct pcb *) pcb_ptr)->total_wait_time + atoi(global_arguments[4]);
 					
 					//*******************************************************************************
 					if(strcmp(global_arguments[5],"fixed") == 0){
@@ -430,52 +399,15 @@ static void *process_task(void *pcb_ptr)
 					//*******************************************************************************
 					((struct pcb *) pcb_ptr)->state = "READY";
 					addatlast(*((struct pcb *) pcb_ptr));
-					//insertqueue(*((struct pcb *) pcb_ptr));
 					pthread_cond_broadcast(&scheduler_cond_var);
 					flag_io2 = true;
 					pthread_cond_signal(&cond_io2);
-					t = clock() - t;
-    				double time_taken = ((double)t)/CLOCKS_PER_SEC;
-						
-					//OUTMODE == 0
-					if(atof(global_arguments[11]) == 0) {
-						//do nothing
-					}
-
-					//OUTMODE == 1
-					else if(atof(global_arguments[11]) == 1) {
-						printf("%d,  %d,   %s", time_taken, ((struct pcb *) pcb_ptr)->pid, ((struct pcb *) pcb_ptr)->state);
-					}
-							
-					//OUTMODE == 2
-					if(atof(global_arguments[11]) == 2) {
-						//-----------TODO-----------
-					}
 					pthread_mutex_unlock(&io2lock);
 				}
 				//flag = true;
 			}
 		}
 	}
-	//------------GET TIMER RESULT------------
-	t = clock() - t;
-    double time_taken = ((double)t)/CLOCKS_PER_SEC;
-
-	//OUTMODE == 0
-	if(atof(global_arguments[11]) == 0) {
-		//do nothing
-	}
-
-	//OUTMODE == 1
-	else if(atof(global_arguments[11]) == 1) {
-		printf("%d,  %d,   %s", time_taken, ((struct pcb *) pcb_ptr)->pid, ((struct pcb *) pcb_ptr)->state);
-	}
-			
-	//OUTMODE == 2
-	if(atof(global_arguments[11]) == 2) {
-		//-----------TODO-----------
-	}
-
 	// release lock
     pthread_mutex_unlock(&plock);
 }
@@ -507,6 +439,7 @@ static void *generate_process(){
 		if(strcmp(global_arguments[5],"fixed") == 0){
 			t_args[i].burst = atoi(global_arguments[6]);
 			t_args[i].remaining_time = atoi(global_arguments[6]);
+			t_args[i].arrival_time = 0;
 		}
 		else if(strcmp(global_arguments[5],"uniform") == 0){
 			int max = atoi(global_arguments[8]);
@@ -515,7 +448,7 @@ static void *generate_process(){
 
 			t_args[i].burst = random;
 			t_args[i].remaining_time = random;
-
+			t_args[i].arrival_time = 0;
 		}
 		else if(strcmp(global_arguments[5],"exponential") == 0){
 			double u;
@@ -529,7 +462,7 @@ static void *generate_process(){
 
 			t_args[i].burst = random;
 			t_args[i].remaining_time = random;
-
+			t_args[i].arrival_time = 0;
 		}
 		total_process_count = total_process_count + 1;
 		ret = pthread_create(&(tids[counter]), NULL, process_task, (void *) &(t_args[i]));
@@ -714,7 +647,7 @@ static void *schedule(){
 
 int main(int argc, char *argv[])
 {
-	
+
 	global_arguments = argv;
 	pthread_t generator_id, scheduler_id;
 	pthread_create(&generator_id, NULL, generate_process, NULL);
@@ -724,12 +657,31 @@ int main(int argc, char *argv[])
 
     //---------------------------------------------------------------------------------------------------------------------------------------------------
 	
-    printf("main: waiting all threads to terminate\n");
+    printf("\nmain: waiting all threads to terminate\n");
     
 	pthread_join(generator_id, NULL);
     pthread_join(scheduler_id, NULL);
 
-	printf("generator and scheduler threads terminated\n");
+	int avg_finish_time = 0;
+	int avg_waiting_time = 0;
+	int avg_turnaround_time = 0;
+	for(int i = 0; i < ANALYSISSIZE; i++) {
+		printf("TEST ZAMANI: %d\n", all_finish_times[i]);
+		avg_finish_time = all_finish_times[i] + avg_finish_time;
+	}
+	for(int j = 0; j < ANALYSISSIZE; j++) {
+		printf("TEST ZAMANI**************: %d\n", all_waiting_times[j]);
+		avg_waiting_time = all_waiting_times[j] + avg_waiting_time;
+	}
+	for(int k = 0; k < ANALYSISSIZE; k++) {
+		avg_turnaround_time = all_turnaround_times[k] + avg_turnaround_time;
+	}
+	avg_finish_time = avg_finish_time / 30;
+	avg_waiting_time = avg_waiting_time / 30;
+	avg_turnaround_time = avg_turnaround_time / 30;
+	printf("Average finish time is: %d\n", avg_finish_time);
+	printf("Average waiting time is: %d\n", avg_waiting_time);
+	printf("Average turnaround time is: %d\n", avg_turnaround_time);
     
     return 0;
 }
