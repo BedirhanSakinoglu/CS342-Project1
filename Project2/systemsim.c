@@ -169,24 +169,19 @@ static void *process_task(void *pcb_ptr)
 
 	pthread_mutex_lock(&plock);
 	pthread_cond_broadcast(&scheduler_cond_var);
-	
-	/*
-	BURADA SORUN VAR
-	broadcast yaptıktan sonra aşağıdaki wait'e (--pthread_cond_wait(&process_cond, &plock);--) gitmeden schedule işini bitirirse kod patlıyor. 
-	*/
 
 	while(true){
 		gettimeofday(&current_time, NULL);
 		pthread_cond_wait(&process_cond, &plock);
 
 
-		//RR çalışınca tam burada takılıyor ama anlamadım!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+		//RR sometimes does not work at this point
 		srand ( time(NULL) );
 		int random = rand()%100;
 		
 		if(((struct pcb *) pcb_ptr)->pid == running_pid){
 
-			printf("\nAN ALGORITHM IS RUNNING NOW\n");
+			//printf("\nAN ALGORITHM IS RUNNING NOW\n");
 			if(strcmp(algo,"RR") == 0){
 				int quantum = atoi(global_arguments[2]);
 				if(((struct pcb *) pcb_ptr)->remaining_time < quantum ){
@@ -251,11 +246,7 @@ static void *process_task(void *pcb_ptr)
 						}
 					}	
 					total_process_count = total_process_count - 1;
-					//printf("A THREAD IS TERMINATED");
-					//printf("\ntotal_process_count is: %d\n", total_process_count);
 					pthread_cond_broadcast(&scheduler_cond_var);
-					//printf("AFTER CALLING scheduler_cond_var\n");
-
 					pthread_mutex_unlock(&plock);
 					pthread_exit("test");
 				}
@@ -553,8 +544,6 @@ static void *generate_process(){
 		}
 		total_process_count = counter;
 	}
-	printf("\n**********************************************************************************\n");
-
 	
 	for (i = 0; i < counter; ++i) {
 		printf("\nTERMINATION ");
@@ -568,7 +557,7 @@ static void *generate_process(){
 		// space for that was allocated in thread function; now freeing. 
 		//free (retmsg); 
 	}
-	printf("main: all process threads terminated\n");
+	printf("\nmain: all process threads terminated\n");
     retreason = malloc (200); 
 	strcpy (retreason, "normal termination of thread"); 
 	pthread_exit(retreason); 
@@ -581,14 +570,14 @@ static void *schedule(){
 	
     pthread_mutex_lock(&lock);
 	while(total_process_count > 0){
-		printf("Waiting on condition variable scheduler_cond_var\n");
+		//printf("Waiting on condition variable scheduler_cond_var\n");
 		pthread_cond_wait(&scheduler_cond_var, &lock);
 		usleep(100000);
 		char *algo = global_arguments[1];
-		printf("\n\nALGORITMA: %s", algo);
+		//printf("\n\nALGORITMA: %s", algo);
 			
 		//SCHEDULING ALGORITHMS
-		printf("\n\n PASSED COND VAR \n\n");
+		//printf("\n\n PASSED COND VAR \n\n");
 		if( strcmp(algo,"FCFS") == 0){
 			struct pcb *process  = remove_head();
 			if(process != NULL) {
@@ -627,9 +616,7 @@ static void *schedule(){
 				//struct pcb *process = dequeue();
 				process->state = "RUNNING";
 				running_pid = process->pid;
-				printf("--------------------------Dequeued: %d, State of Process: %s, Remaining time:%d\n", process->pid, process->state, process->remaining_time);
 				pthread_cond_broadcast(&process_cond);
-				printf("*****RR İÇERİSİ*****\n");
 			}
 			else {
 				pthread_cond_broadcast(&process_cond);
@@ -666,11 +653,9 @@ int main(int argc, char *argv[])
 	int avg_waiting_time = 0;
 	int avg_turnaround_time = 0;
 	for(int i = 0; i < ANALYSISSIZE; i++) {
-		printf("TEST ZAMANI: %d\n", all_finish_times[i]);
 		avg_finish_time = all_finish_times[i] + avg_finish_time;
 	}
 	for(int j = 0; j < ANALYSISSIZE; j++) {
-		printf("TEST ZAMANI**************: %d\n", all_waiting_times[j]);
 		avg_waiting_time = all_waiting_times[j] + avg_waiting_time;
 	}
 	for(int k = 0; k < ANALYSISSIZE; k++) {
