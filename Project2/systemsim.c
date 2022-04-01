@@ -8,6 +8,7 @@
 #include <stdbool.h>  
 #include <limits.h>
 #include <math.h>
+#include <time.h>
 
 #define MAXTHREADS  500	    /* max number of threads */
 #define MAXFILENAME 50		/* max length of a filename */
@@ -17,6 +18,7 @@ bool flag_io1 = true;
 bool flag_io2 = true;
 int total_process_count = 0;
 int running_pid = -1;
+clock_t t;
 
 // Declaration of thread condition variable
 pthread_cond_t scheduler_cond_var = PTHREAD_COND_INITIALIZER;
@@ -146,11 +148,11 @@ void deleteNode(struct node** head_ref, int key)
 
 static void *process_task(void *pcb_ptr)
 {
+	t = clock();
 	
+	bool check = false;
 	char* retreason;
-	
 	char *algo = global_arguments[1];
-	
 	int remaining_time = ((struct pcb *) pcb_ptr)->remaining_time;
 	char *state = ((struct pcb *) pcb_ptr)->state;
 
@@ -158,7 +160,6 @@ static void *process_task(void *pcb_ptr)
 	double prob_io1 = atof(global_arguments[10]);
 	double prob_io2 = atof(global_arguments[11]);
 
-	bool check = false;
 
 	printf("\n*********DIŞARISI********** running_pid: %d ", running_pid);
 	printf("\n*********DIŞARISI********** pid: %d, state: %s\n", ((struct pcb *) pcb_ptr)->pid, ((struct pcb *) pcb_ptr)->state);
@@ -228,12 +229,50 @@ static void *process_task(void *pcb_ptr)
 					printf("\ntotal_process_count is: %d\n", total_process_count);
 					pthread_cond_broadcast(&scheduler_cond_var);
 					printf("AFTER CALLING scheduler_cond_var\n");
+						
+					//------------GET TIMER RESULT------------
+					t = clock() - t;
+					double time_taken = ((double)t)/CLOCKS_PER_SEC;
+						
+					//OUTMODE == 0
+					if(atof(global_arguments[11]) == 0) {
+						//do nothing
+					}
+
+					//OUTMODE == 1
+					else if(atof(global_arguments[11]) == 1) {
+						printf("%d,  %d,   %s", time_taken, ((struct pcb *) pcb_ptr)->pid, ((struct pcb *) pcb_ptr)->state);
+					}
+							
+					//OUTMODE == 2
+					if(atof(global_arguments[11]) == 2) {
+						//-----------TODO-----------
+					}
 					pthread_mutex_unlock(&plock);
 					pthread_exit("test");
 				}
 				else if( random < prob_terminate*100 + prob_io1*100 ){
 					//io1
 					pthread_mutex_lock(&io1lock);
+
+					//------------GET TIMER RESULT------------
+					t = clock() - t;
+					double time_taken = ((double)t)/CLOCKS_PER_SEC;
+						
+					//OUTMODE == 0
+					if(atof(global_arguments[11]) == 0) {
+						//do nothing
+					}
+
+					//OUTMODE == 1
+					else if(atof(global_arguments[11]) == 1) {
+						printf("%d,  %d,   %s", time_taken, ((struct pcb *) pcb_ptr)->pid, "DEVICE1");
+					}
+							
+					//OUTMODE == 2
+					if(atof(global_arguments[11]) == 2) {
+						//-----------TODO-----------
+					}
 					printf("INSIDE OF IO1 DEVICE\n");
 					if(!flag_io1){
 						printf("\nfffffffffff");
@@ -281,6 +320,25 @@ static void *process_task(void *pcb_ptr)
 						pthread_cond_broadcast(&scheduler_cond_var);
 						flag_io1 = true;
 						pthread_cond_signal(&cond_io1);
+
+						//------------GET TIMER RESULT------------
+						t = clock() - t;
+						double time_taken = ((double)t)/CLOCKS_PER_SEC;
+							
+						//OUTMODE == 0
+						if(atof(global_arguments[11]) == 0) {
+							//do nothing
+						}
+
+						//OUTMODE == 1
+						else if(atof(global_arguments[11]) == 1) {
+							printf("%d,  %d,   %s", time_taken, ((struct pcb *) pcb_ptr)->pid, ((struct pcb *) pcb_ptr)->state);
+						}
+								
+						//OUTMODE == 2
+						if(atof(global_arguments[11]) == 2) {
+							//-----------TODO-----------
+						}
 						pthread_mutex_unlock(&io1lock);
 					}
 					//*******************************************************************************
@@ -291,6 +349,25 @@ static void *process_task(void *pcb_ptr)
 				else if( random < prob_terminate*100 + prob_io1*100 + prob_io2*100 ){
 					//io2
 					pthread_mutex_lock(&io2lock);
+					
+					//------------GET TIMER RESULT------------
+					t = clock() - t;
+					double time_taken = ((double)t)/CLOCKS_PER_SEC;
+						
+					//OUTMODE == 0
+					if(atof(global_arguments[11]) == 0) {
+						//do nothing
+					}
+
+					//OUTMODE == 1
+					else if(atof(global_arguments[11]) == 1) {
+						printf("%d,  %d,   %s", time_taken, ((struct pcb *) pcb_ptr)->pid, "DEVICE1");
+					}
+							
+					//OUTMODE == 2
+					if(atof(global_arguments[11]) == 2) {
+						//-----------TODO-----------
+					}
 					printf("INSIDE OF IO2 DEVICE\n");
 					printf("\nflag io2: %d", flag_io2);
 					if(!flag_io2){
@@ -302,6 +379,25 @@ static void *process_task(void *pcb_ptr)
 						flag_io2 = false;
 					}
 					((struct pcb *) pcb_ptr)->state = "WAITING";
+
+					//------------GET TIMER RESULT------------
+					t = clock() - t;
+    				double time_taken = ((double)t)/CLOCKS_PER_SEC;
+						
+					//OUTMODE == 0
+					if(atof(global_arguments[11]) == 0) {
+						//do nothing
+					}
+
+					//OUTMODE == 1
+					else if(atof(global_arguments[11]) == 1) {
+						printf("%d,  %d,   %s", time_taken, ((struct pcb *) pcb_ptr)->pid, ((struct pcb *) pcb_ptr)->state);
+					}
+							
+					//OUTMODE == 2
+					if(atof(global_arguments[11]) == 2) {
+						//-----------TODO-----------
+					}
 					usleep(atoi(global_arguments[4]));
 					
 					//*******************************************************************************
@@ -338,14 +434,49 @@ static void *process_task(void *pcb_ptr)
 					pthread_cond_broadcast(&scheduler_cond_var);
 					flag_io2 = true;
 					pthread_cond_signal(&cond_io2);
+					t = clock() - t;
+    				double time_taken = ((double)t)/CLOCKS_PER_SEC;
+						
+					//OUTMODE == 0
+					if(atof(global_arguments[11]) == 0) {
+						//do nothing
+					}
+
+					//OUTMODE == 1
+					else if(atof(global_arguments[11]) == 1) {
+						printf("%d,  %d,   %s", time_taken, ((struct pcb *) pcb_ptr)->pid, ((struct pcb *) pcb_ptr)->state);
+					}
+							
+					//OUTMODE == 2
+					if(atof(global_arguments[11]) == 2) {
+						//-----------TODO-----------
+					}
 					pthread_mutex_unlock(&io2lock);
 				}
 				//flag = true;
 			}
 		}
 	}
+	//------------GET TIMER RESULT------------
+	t = clock() - t;
+    double time_taken = ((double)t)/CLOCKS_PER_SEC;
 
-    // release lock
+	//OUTMODE == 0
+	if(atof(global_arguments[11]) == 0) {
+		//do nothing
+	}
+
+	//OUTMODE == 1
+	else if(atof(global_arguments[11]) == 1) {
+		printf("%d,  %d,   %s", time_taken, ((struct pcb *) pcb_ptr)->pid, ((struct pcb *) pcb_ptr)->state);
+	}
+			
+	//OUTMODE == 2
+	if(atof(global_arguments[11]) == 2) {
+		//-----------TODO-----------
+	}
+
+	// release lock
     pthread_mutex_unlock(&plock);
 }
 
