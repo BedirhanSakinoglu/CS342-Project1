@@ -169,13 +169,18 @@ static void *process_task(void *pcb_ptr)
 
 	pthread_mutex_lock(&plock);
 	pthread_cond_broadcast(&scheduler_cond_var);
+	
+	/*
+	BURADA SORUN VAR
+	broadcast yaptıktan sonra aşağıdaki wait'e (--pthread_cond_wait(&process_cond, &plock);--) gitmeden schedule işini bitirirse kod patlıyor. 
+	*/
 
 	while(true){
 		gettimeofday(&current_time, NULL);
 		pthread_cond_wait(&process_cond, &plock);
 
 
-		//RR sometimes does not work at this point
+		//RR çalışınca tam burada takılıyor ama anlamadım!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 		srand ( time(NULL) );
 		int random = rand()%100;
 		
@@ -246,7 +251,11 @@ static void *process_task(void *pcb_ptr)
 						}
 					}	
 					total_process_count = total_process_count - 1;
+					//printf("A THREAD IS TERMINATED");
+					//printf("\ntotal_process_count is: %d\n", total_process_count);
 					pthread_cond_broadcast(&scheduler_cond_var);
+					//printf("AFTER CALLING scheduler_cond_var\n");
+
 					pthread_mutex_unlock(&plock);
 					pthread_exit("test");
 				}
@@ -574,10 +583,10 @@ static void *schedule(){
 		pthread_cond_wait(&scheduler_cond_var, &lock);
 		usleep(100000);
 		char *algo = global_arguments[1];
-		//printf("\n\nALGORITMA: %s", algo);
+		printf("\n\nALGORITMA: %s", algo);
 			
 		//SCHEDULING ALGORITHMS
-		//printf("\n\n PASSED COND VAR \n\n");
+		printf("\n\n PASSED COND VAR \n\n");
 		if( strcmp(algo,"FCFS") == 0){
 			struct pcb *process  = remove_head();
 			if(process != NULL) {
@@ -613,7 +622,6 @@ static void *schedule(){
 			int quantum = atoi(global_arguments[2]);
 			struct pcb *process = remove_head();
 			if(process != NULL) {
-				//struct pcb *process = dequeue();
 				process->state = "RUNNING";
 				running_pid = process->pid;
 				pthread_cond_broadcast(&process_cond);
